@@ -357,10 +357,6 @@ int fnTcpsConnection::accept_connection()
         return 1;
     }
 
-    // `_awaiting_tls_handshake` will be set to false by event handler when
-    // MG_EV_TLS_HS event is received.
-    _awaiting_tls_handshake == true;
-
     // Setup timeout
     uint64_t start_time = mg_millis();
     uint64_t timeout = (_timeout < 0) ? 30000 : _timeout; // Default 30s timeout
@@ -369,18 +365,17 @@ int fnTcpsConnection::accept_connection()
     // Call `mg_mgr_poll` until we have an established inbound connection with
     // TLS, or until the timeout expires.
     while ((_inbound_conn == nullptr || _inbound_conn->is_tls_hs == 1 ||
-            _inbound_conn->is_accepted == 0 || _inbound_conn->is_tls == 0 ||
-            _awaiting_tls_handshake == true) &&
+            _inbound_conn->is_accepted == 0 || _inbound_conn->is_tls == 0) &&
            (mg_millis() - start_time) < timeout)
     {
         mg_mgr_poll(_mgr, 1000);
     }
     _is_polling = false;
 
-    if (_inbound_conn->is_tls == 1 && !_awaiting_tls_handshake)
+    if (_inbound_conn->is_tls == 1 && _inbound_conn->is_accepted == 1)
         return 0;
-    else
-        Debug_printf("fnTcpsConnection: timed out waiting for incoming connection\r\n");
+
+    Debug_printf("fnTcpsConnection: timed out waiting for incoming connection\r\n");
     return 1;
 }
 
