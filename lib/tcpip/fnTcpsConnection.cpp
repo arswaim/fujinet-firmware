@@ -56,6 +56,8 @@ bool fnTcpsConnection::connected()
             return false;
         }
     }
+
+    return false;
 }
 
 // Returns the number of bytes waiting to be read.
@@ -241,7 +243,7 @@ in_addr_t fnTcpsConnection::remoteIP() const
     }
     else
     {
-        return (in_addr_t)_outbound_conn->rem.ip;
+        return (in_addr_t)*_outbound_conn->rem.ip;
     }
 }
 
