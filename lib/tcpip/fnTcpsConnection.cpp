@@ -22,7 +22,7 @@ int fnTcpsConnection::setTimeout(uint32_t seconds)
     return 0;
 }
 
-uint8_t fnTcpsConnection::connected()
+bool fnTcpsConnection::connected()
 {
     if ((!_is_client && !_is_server) ||
         (_outbound_conn == nullptr && _inbound_conn == nullptr))
@@ -74,6 +74,8 @@ size_t fnTcpsConnection::available()
             mg_mgr_poll(_mgr, 100);
         return _outbound_conn->recv.len;
     }
+
+    return 0;
 }
 
 // read data
@@ -203,6 +205,7 @@ size_t fnTcpsConnection::write(const uint8_t *buf, size_t size)
             return _bytes_written;
         }
     }
+    return 0;
 }
 
 // Send std::string of data
@@ -238,7 +241,7 @@ in_addr_t fnTcpsConnection::remoteIP() const
     }
     else
     {
-        return (uint32_t)_outbound_conn->rem.ip;
+        return (in_addr_t)_outbound_conn->rem.ip;
     }
 }
 

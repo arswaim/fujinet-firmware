@@ -30,7 +30,7 @@ public:
     // Public methods for managing TCP with TLS connections
     // These are used both when acting as a server and client
     int setTimeout(uint32_t seconds);
-    uint8_t connected();
+    bool connected();
     size_t available();
     int read();
     int read(uint8_t *buf, size_t size);
