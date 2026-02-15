@@ -4,6 +4,7 @@
 #define _FN_TCPSCONNECTION_H_
 
 #include "mongoose.h"
+#undef mkdir
 #include <memory>
 #include <string>
 #include "compat_inet.h"

@@ -76,6 +76,7 @@ size_t fnTcpsConnection::available()
             mg_mgr_poll(_mgr, 100);
         return _outbound_conn->recv.len;
     }
+    return 0;
 }
 
 // read data
