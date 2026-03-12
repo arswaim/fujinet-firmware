@@ -145,7 +145,7 @@ protected:
 
     Hash::Algorithm algorithm = Hash::Algorithm::UNKNOWN;
 
-    virtual void transaction_continue(bool expectMoreData) = 0;
+    virtual void transaction_continue(transState_t expectMoreData) = 0;
     virtual void transaction_complete() = 0;
     virtual void transaction_error() = 0;
     virtual bool transaction_get(void *data, size_t len) = 0;
@@ -260,6 +260,7 @@ public:
 
     // Should be protected but being called by drivewire.cpp
     void insert_boot_device(uint8_t image_id, mediatype_t disk_type, DISK_DEVICE *disk_dev);
+    void insert_boot_device(std::string boot_img, mediatype_t disk_type, DISK_DEVICE *disk_dev);
 };
 
 extern fujiDevice *theFuji;

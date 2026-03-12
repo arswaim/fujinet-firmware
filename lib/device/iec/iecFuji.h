@@ -20,11 +20,14 @@ typedef enum
 class iecFuji : public fujiDevice
 {
 protected:
-    void transaction_continue(bool expectMoreData) override {}
+    void transaction_continue(transState_t expectMoreData) override {}
     void transaction_complete() override {}
     void transaction_error() override {}
     bool transaction_get(void *data, size_t len) override {return false;}
-    void transaction_put(const void *data, size_t len, bool err) override {}
+    void transaction_put(const void *data, size_t len, bool err) override {
+        response.clear();
+        response.append(reinterpret_cast<const char*>(data), len);
+    }
 
     size_t set_additional_direntry_details(fsdir_entry_t *f, uint8_t *dest,
                                            uint8_t maxlen) override;
@@ -182,6 +185,11 @@ protected:
     void set_boot_config_basic();
     void set_boot_config_raw();
 
+    // 0xD8
+    void copy_file(std::string source, std::string destination);
+    void copy_file_basic();
+    void copy_file_raw();
+
     // 0xD6
     void set_boot_mode_basic();
     void set_boot_mode_raw();
@@ -211,6 +219,9 @@ protected:
     void hash_clear_raw();
 
     // Commodore specific
+    void update_firmware();
+
+    // Commodore specific
     void local_ip();
     void netmask();
     void gateway();
@@ -219,8 +230,8 @@ protected:
     void bssid();
     void fn_version();
 
-    void enable_device_basic();
-    void disable_device_basic();
+    void enable_device_basic(std::string ids = "");
+    void disable_device_basic(std::string ids = "");
 
     bool check_appkey_creator(bool check_is_write);
 
