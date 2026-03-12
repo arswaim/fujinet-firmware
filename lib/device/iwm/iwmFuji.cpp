@@ -67,7 +67,7 @@ iwmFuji::iwmFuji() : fujiDevice(MAX_A2DISK_DEVICES, IMAGE_EXTENSION, LOBBY_URL)
         { FUJICMD_SET_DEVICE_FULLPATH, [this]()        { this->fujicmd_set_device_filename_success(data_buffer[0], data_buffer[1], (disk_access_flags_t) data_buffer[2]); }},      // 0xE2
         { FUJICMD_SET_DIRECTORY_POSITION, [this]()     { this->fujicmd_set_directory_position(le16toh(*((uint16_t *) &data_buffer))); }},   // 0xE4
         { FUJICMD_SET_HOST_PREFIX, [this]()            { this->fujicmd_set_host_prefix(data_buffer[0], (const char *) &data_buffer[1]); }},          // 0xE1
-        { FUJICMD_SET_SSID, [this]()                   { this->fujicmd_net_set_ssid_success((const char *) data_buffer, (const char *) &data_buffer[MAX_SSID_LEN + 1], false); }},             // 0xFB
+        { FUJICMD_SET_SSID, [this]()                   { this->fujicmd_net_set_ssid_success((const char *) data_buffer, (const char *) &data_buffer[MAX_SSID_LEN + 1], true); }},             // 0xFB
         { FUJICMD_UNMOUNT_HOST, [this]()               { this->fujicmd_unmount_host_success(data_buffer[0]); }},             // 0xE6
         { FUJICMD_UNMOUNT_IMAGE, [this]()              { this->fujicmd_unmount_disk_image_success(data_buffer[0]); }},        // 0xE9
         { FUJICMD_WRITE_APPKEY, [this]()               { this->fujicmd_write_app_key(data_len); }},            // 0xDE
@@ -299,7 +299,7 @@ void iwmFuji::setup()
         populate_slots_from_config();
 
         // Disable booting from CONFIG if our settings say to turn it off
-        boot_config = false; // to do - understand?
+        boot_config = Config.get_general_config_enabled();
 
         // add ourselves as a device
         SYSTEM_BUS.addDevice(this, iwm_fujinet_type_t::FujiNet);
@@ -320,8 +320,16 @@ void iwmFuji::setup()
                 SYSTEM_BUS.addDevice(disk_dev, iwm_fujinet_type_t::BlockDisk);
         }
 
-        Debug_printf("\nConfig General Boot Mode: %u\n", Config.get_general_boot_mode());
-        insert_boot_device(Config.get_general_boot_mode(), MEDIATYPE_PO, get_disk_dev(0));
+        if (boot_config)
+        {
+            Debug_printf("\nConfig General Boot Mode: %u\n", Config.get_general_boot_mode());
+            insert_boot_device(Config.get_general_boot_mode(), MEDIATYPE_PO, get_disk_dev(0));
+        }
+        else if (!Config.get_config_filename().empty())
+        {
+            Debug_printf("\nInsert Alternate Config Disk: %s\n", Config.get_config_filename().c_str());
+            insert_boot_device(Config.get_config_filename(), MEDIATYPE_PO, get_disk_dev(0));
+        }
 }
 
 void iwmFuji::send_status_reply_packet()
@@ -615,7 +623,7 @@ bool iwmFuji::fujicmd_set_device_filename_success(uint8_t deviceSlot, uint8_t ho
 {
     char tmp[MAX_FILENAME_LEN];
 
-    transaction_continue(true);
+    transaction_continue(TRANS_STATE::WILL_GET);
     if (!transaction_get(tmp, sizeof(tmp)))
     {
         transaction_error();

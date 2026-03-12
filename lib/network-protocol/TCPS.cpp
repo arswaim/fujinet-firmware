@@ -46,9 +46,10 @@ NetworkProtocolTCPS::~NetworkProtocolTCPS()
  * @param urlParser The URL object passed in to open.
  * @param cmdFrame The command frame to extract aux1/aux2/etc.
  */
-netProtoErr_t NetworkProtocolTCPS::open(PeoplesUrlParser *urlParser, cmdFrame_t *cmdFrame)
+protocolError_t NetworkProtocolTCPS::open(PeoplesUrlParser *urlParser, fileAccessMode_t access,
+                                          netProtoTranslation_t translate)
 {
-    netProtoErr_t ret = NETPROTO_ERR_UNSPECIFIED; // assume error until proven ok
+    protocolError_t ret = PROTOCOL_ERROR::UNSPECIFIED; // assume error until proven ok
 
     Debug_printf("NetworkProtocolTCPS::open(%s:%s)\r\n", urlParser->host.c_str(),
                  urlParser->port.c_str());
@@ -60,7 +61,7 @@ netProtoErr_t NetworkProtocolTCPS::open(PeoplesUrlParser *urlParser, cmdFrame_t 
             ret = open_server(urlParser->getPort());
         else
         {
-            ret = NETPROTO_ERR_NONE; // No error.
+            ret = PROTOCOL_ERROR::NONE; // No error.
         }
     }
     else
@@ -73,7 +74,7 @@ netProtoErr_t NetworkProtocolTCPS::open(PeoplesUrlParser *urlParser, cmdFrame_t 
     }
 
     // call base class
-    NetworkProtocol::open(urlParser, cmdFrame);
+    NetworkProtocol::open(urlParser, access, translate);
 
     return ret;
 }
@@ -81,21 +82,21 @@ netProtoErr_t NetworkProtocolTCPS::open(PeoplesUrlParser *urlParser, cmdFrame_t 
 /**
  * @brief Close connection to the protocol.
  */
-netProtoErr_t NetworkProtocolTCPS::close()
+protocolError_t NetworkProtocolTCPS::close()
 {
     Debug_printf("NetworkProtocolTCPS::close()\r\n");
     NetworkProtocol::close();
     tcp_tls_conn.stop();
-    return NETPROTO_ERR_NONE;
+    return PROTOCOL_ERROR::NONE;
 }
 
 /**
  * @brief Read len bytes into rx_buf, If protocol times out, the buffer should be null padded
  * to length.
  * @param len number of bytes to read.
- * @return NETPROTO_ERR_NONE on success, NETPROTO_ERR_UNSPECIFIED on error
+ * @return PROTOCOL_ERROR::NONE on success, PROTOCOL_ERROR::UNSPECIFIED on error
  */
-netProtoErr_t NetworkProtocolTCPS::read(unsigned short len)
+protocolError_t NetworkProtocolTCPS::read(unsigned short len)
 {
     unsigned short actual_len = 0;
     std::vector<uint8_t> newData = std::vector<uint8_t>(len);
@@ -104,32 +105,25 @@ netProtoErr_t NetworkProtocolTCPS::read(unsigned short len)
 
     if (receiveBuffer->length() == 0)
     {
-        // Check for client connection
-        if (!tcp_tls_conn.connected())
-        {
-            error = NETWORK_ERROR_NOT_CONNECTED;
-            return NETPROTO_ERR_UNSPECIFIED; // error
-        }
-
         // Do the read from client socket.
         actual_len = tcp_tls_conn.read(newData.data(), len);
 
         // bail if the connection is reset.
         if (errno == ECONNRESET)
         {
-            error = NETWORK_ERROR_CONNECTION_RESET;
-            return NETPROTO_ERR_UNSPECIFIED;
+            error = NDEV_STATUS::CONNECTION_RESET;
+            return PROTOCOL_ERROR::UNSPECIFIED;
         }
         else if (actual_len != len) // Read was short and timed out.
         {
-            error = NETWORK_ERROR_SOCKET_TIMEOUT;
-            return NETPROTO_ERR_UNSPECIFIED;
+            error = NDEV_STATUS::SOCKET_TIMEOUT;
+            return PROTOCOL_ERROR::UNSPECIFIED;
         }
 
         // Add new data to buffer.
         receiveBuffer->insert(receiveBuffer->end(), newData.begin(), newData.end());
     }
-    error = 1;
+    error = NDEV_STATUS::SUCCESS;
     return NetworkProtocol::read(len);
 }
 
@@ -138,7 +132,7 @@ netProtoErr_t NetworkProtocolTCPS::read(unsigned short len)
  * @param len The # of bytes to transmit, len should not be larger than buffer.
  * @return Number of bytes written.
  */
-netProtoErr_t NetworkProtocolTCPS::write(unsigned short len)
+protocolError_t NetworkProtocolTCPS::write(unsigned short len)
 {
     int actual_len = 0;
 
@@ -147,8 +141,8 @@ netProtoErr_t NetworkProtocolTCPS::write(unsigned short len)
     // Check for client connection
     if (!tcp_tls_conn.connected())
     {
-        error = NETWORK_ERROR_NOT_CONNECTED;
-        return NETPROTO_ERR_UNSPECIFIED; // error
+        error = NDEV_STATUS::NOT_CONNECTED;
+        return PROTOCOL_ERROR::UNSPECIFIED; // error
     }
 
     // Call base class to do translation.
@@ -160,31 +154,31 @@ netProtoErr_t NetworkProtocolTCPS::write(unsigned short len)
     // bail if the connection is reset.
     if (errno == ECONNRESET)
     {
-        error = NETWORK_ERROR_CONNECTION_RESET;
-        return NETPROTO_ERR_UNSPECIFIED;
+        error = NDEV_STATUS::CONNECTION_RESET;
+        return PROTOCOL_ERROR::UNSPECIFIED;
     }
     else if (actual_len != len) // write was short.
     {
         Debug_printf("NetworkProtocolTCPS: Short send. We sent %u bytes, but asked to send %u "
                      "bytes.\r\n",
                      actual_len, len);
-        error = NETWORK_ERROR_SOCKET_TIMEOUT;
-        return NETPROTO_ERR_UNSPECIFIED;
+        error = NDEV_STATUS::SOCKET_TIMEOUT;
+        return PROTOCOL_ERROR::UNSPECIFIED;
     }
 
     // Return success
-    error = 1;
+    error = NDEV_STATUS::SOCKET_TIMEOUT;
     transmitBuffer->erase(0, len);
 
-    return NETPROTO_ERR_NONE;
+    return PROTOCOL_ERROR::NONE;
 }
 
 /**
  * @brief Return protocol status information in provided NetworkStatus object.
  * @param status a pointer to a NetworkStatus object to receive status information
- * @return NETPROTO_ERR_NONE on success, NETPROTO_ERR_UNSPECIFIED on error
+ * @return PROTOCOL_ERROR::NONE on success, PROTOCOL_ERROR::UNSPECIFIED on error
  */
-netProtoErr_t NetworkProtocolTCPS::status(NetworkStatus *status)
+protocolError_t NetworkProtocolTCPS::status(NetworkStatus *status)
 {
     if (connectionIsServer == true)
         status_server(status);
@@ -193,13 +187,13 @@ netProtoErr_t NetworkProtocolTCPS::status(NetworkStatus *status)
 
     NetworkProtocol::status(status);
 
-    return NETPROTO_ERR_NONE;
+    return PROTOCOL_ERROR::NONE;
 }
 
 void NetworkProtocolTCPS::status_client(NetworkStatus *status)
 {
     status->connected = tcp_tls_conn.connected();
-    status->error = tcp_tls_conn.connected() ? error : 136;
+    status->error = tcp_tls_conn.connected() ? error : NDEV_STATUS::END_OF_FILE;
 }
 
 void NetworkProtocolTCPS::status_server(NetworkStatus *status)
@@ -224,79 +218,11 @@ size_t NetworkProtocolTCPS::available()
 }
 
 /**
- * @brief Return a DSTATS byte for a requested COMMAND byte.
- * @param cmd The Command (0x00-0xFF) for which DSTATS is requested.
- * @return a 0x00 = No payload, 0x40 = Payload to Atari, 0x80 = Payload to FujiNet, 0xFF =
- * Command not supported.
- */
-AtariSIODirection NetworkProtocolTCPS::special_inquiry(fujiCommandID_t cmd)
-{
-    Debug_printf("NetworkProtocolTCPS::special_inquiry(%02x)\r\n", cmd);
-
-    switch (cmd)
-    {
-    case FUJICMD_CONTROL:
-        return SIO_DIRECTION_NONE;
-    case FUJICMD_CLOSE_CLIENT:
-        return SIO_DIRECTION_NONE;
-    default:
-        break;
-    }
-
-    return SIO_DIRECTION_INVALID;
-}
-
-/**
- * @brief execute a command that returns no payload
- * @param cmdFrame a pointer to the passed in command frame for aux1/aux2/etc
- * @return NETPROTO_ERR_NONE on success, NETPROTO_ERR_UNSPECIFIED on error
- */
-netProtoErr_t NetworkProtocolTCPS::special_00(cmdFrame_t *cmdFrame)
-{
-    Debug_printf("NetworkProtocolTCPS::special_00(%c)\n", cmdFrame->comnd);
-
-    switch (cmdFrame->comnd)
-    {
-    case FUJICMD_CONTROL:
-        return special_accept_connection();
-        break;
-    case FUJICMD_CLOSE_CLIENT:
-        Debug_printf("NetworkProtocolTCPS: Closing client connection\r\n");
-        return special_close_client_connection();
-        break;
-    }
-    return NETPROTO_ERR_UNSPECIFIED; // error
-}
-
-/**
- * @brief execute a command that returns a payload to the atari.
- * @param sp_buf a pointer to the special buffer
- * @param len Length of data to request from protocol. Should not be larger than buffer.
- * @return NETPROTO_ERR_NONE on success, NETPROTO_ERR_UNSPECIFIED on error
- */
-netProtoErr_t NetworkProtocolTCPS::special_40(uint8_t *sp_buf, unsigned short len,
-                                              cmdFrame_t *cmdFrame)
-{
-    return NETPROTO_ERR_NONE;
-}
-
-/**
- * @brief execute a command that sends a payload to fujinet (most common, XIO)
- * @param sp_buf, a pointer to the special buffer, usually a EOL terminated devicespec.
- * @param len length of the special buffer, typically SPECIAL_BUFFER_SIZE
- */
-netProtoErr_t NetworkProtocolTCPS::special_80(uint8_t *sp_buf, unsigned short len,
-                                              cmdFrame_t *cmdFrame)
-{
-    return NETPROTO_ERR_NONE;
-}
-
-/**
  * Open a server (listening) connection.
  * @param port bind to port #
- * @return NETPROTO_ERR_NONE on success, NETPROTO_ERR_UNSPECIFIED on error
+ * @return PROTOCOL_ERROR::NONE on success, PROTOCOL_ERROR::UNSPECIFIED on error
  */
-netProtoErr_t NetworkProtocolTCPS::open_server(unsigned short port)
+protocolError_t NetworkProtocolTCPS::open_server(unsigned short port)
 {
     Debug_printf("NetworkProtocolTCPS: Binding to port %d\r\n", port);
 
@@ -307,19 +233,19 @@ netProtoErr_t NetworkProtocolTCPS::open_server(unsigned short port)
     {
         Debug_printf("NetworkProtocolTCPS: errno = %u\r\n", errno);
         errno_to_error();
-        return NETPROTO_ERR_UNSPECIFIED;
+        return PROTOCOL_ERROR::UNSPECIFIED;
     }
 
-    return NETPROTO_ERR_NONE;
+    return PROTOCOL_ERROR::NONE;
 }
 
 /**
  * Open a client connection to host and port.
  * @param hostname The hostname to connect to.
  * @param port the port number to connect to.
- * @return NETPROTO_ERR_NONE on success, NETPROTO_ERR_UNSPECIFIED on error
+ * @return PROTOCOL_ERROR::NONE on success, PROTOCOL_ERROR::UNSPECIFIED on error
  */
-netProtoErr_t NetworkProtocolTCPS::open_client(std::string hostname, unsigned short port)
+protocolError_t NetworkProtocolTCPS::open_client(std::string hostname, unsigned short port)
 {
     int res = 0;
 
@@ -337,22 +263,22 @@ netProtoErr_t NetworkProtocolTCPS::open_client(std::string hostname, unsigned sh
     if (res == 0)
     {
         errno_to_error();
-        return NETPROTO_ERR_UNSPECIFIED; // Error.
+        return PROTOCOL_ERROR::UNSPECIFIED; // Error.
     }
     else
-        return NETPROTO_ERR_NONE; // We're connected.
+        return PROTOCOL_ERROR::NONE; // We're connected.
 }
 
 /**
  * Special: Accept a server connection, transfer to client socket.
  */
-netProtoErr_t NetworkProtocolTCPS::special_accept_connection()
+protocolError_t NetworkProtocolTCPS::special_accept_connection()
 {
     if (!tcp_tls_conn.hasClient())
     {
         Debug_printf("NetworkProtocolTCPS: Attempted accept without a client connection.\r\n");
-        error = NETWORK_ERROR_SERVER_NOT_RUNNING;
-        return NETPROTO_ERR_UNSPECIFIED; // Error
+        error = NDEV_STATUS::SERVER_NOT_RUNNING;
+        return PROTOCOL_ERROR::UNSPECIFIED; // Error
     }
 
     int res = 1;
@@ -371,25 +297,25 @@ netProtoErr_t NetworkProtocolTCPS::special_accept_connection()
         {
             Debug_printf("NetworkProtocolTCPS: Accepted connection from %s:%u\r\n",
                          remoteIPString, remotePort);
-            return NETPROTO_ERR_NONE;
+            return PROTOCOL_ERROR::NONE;
         }
         else
         {
-            return NETPROTO_ERR_UNSPECIFIED;
+            return PROTOCOL_ERROR::UNSPECIFIED;
         }
     }
     else
     {
-        error = NETWORK_ERROR_CONNECTION_RESET;
+        error = NDEV_STATUS::CONNECTION_RESET;
         Debug_printf("NetworkProtocolTCPS: Client immediately disconnected.\r\n");
-        return NETPROTO_ERR_UNSPECIFIED;
+        return PROTOCOL_ERROR::UNSPECIFIED;
     }
 }
 
 /**
  * Special: Close connection .
  */
-netProtoErr_t NetworkProtocolTCPS::special_close_client_connection()
+protocolError_t NetworkProtocolTCPS::special_close_client_connection()
 {
     tcp_tls_conn.stop();
 
@@ -398,5 +324,5 @@ netProtoErr_t NetworkProtocolTCPS::special_close_client_connection()
     transmitBuffer->clear();
     specialBuffer->clear();
 
-    return NETPROTO_ERR_UNSPECIFIED; // this seems wrong?
+    return PROTOCOL_ERROR::UNSPECIFIED;
 }

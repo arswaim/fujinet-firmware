@@ -19,6 +19,7 @@
 #ifndef COCO_H
 #define COCO_H
 
+#include "cmdFrame.h"
 #include "BeckerSocket.h"
 #include "UARTChannel.h"
 #include "fujiDeviceID.h"
@@ -115,24 +116,6 @@
 // EXTERN struct dwTransferData datapack;
 // EXTERN int interactive;
 
-// This is here because the network protocol adapters speak this
-union cmdFrame_t
-{
-    struct
-    {
-        uint8_t device;
-        uint8_t comnd;
-        uint8_t aux1;
-        uint8_t aux2;
-        uint8_t cksum;
-    };
-    struct
-    {
-        uint32_t commanddata;
-        uint8_t checksum;
-    } __attribute__((packed));
-};
-
 // class def'ns
 class drivewireModem;          // declare here so can reference it, but define in modem.h
 class drivewireFuji;        // declare here so can reference it, but define in fuji.h
@@ -142,12 +125,14 @@ class drivewireUDPStream;   // declare here so can reference it, but define in u
 class drivewireCassette;    // Cassette forward-declaration.
 class drivewireCPM;         // CPM device.
 class drivewirePrinter;     // Printer device
+class fujiDevice;
 
 class virtualDevice
 {
-protected:
     friend systemBus;
+    friend fujiDevice;
 
+protected:
     fujiDeviceID_t _devnum;
 
     cmdFrame_t cmdFrame;
